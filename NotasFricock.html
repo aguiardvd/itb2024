@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestão de Registros</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    table, th, td {
+      border: 1px solid black;
+    }
+    th, td {
+      text-align: center;
+      padding: 10px;
+    }
+    form {
+      margin-bottom: 20px;
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gestão de Registros</h1>
+
+  <!-- Formulário para Adicionar Registro -->
+  <form id="addForm">
+    <label for="numeroNF">Número NF:</label>
+    <input type="number" id="numeroNF" required>
+    
+    <label for="tipo">Tipo:</label>
+    <input type="text" id="tipo" required>
+    
+    <label for="valorNF">Valor NF:</label>
+    <input type="number" id="valorNF" step="0.01" required>
+    
+    <button type="submit">Adicionar</button>
+  </form>
+
+  <!-- Grid de Registros -->
+  <table>
+    <thead>
+      <tr>
+        <th>Número NF</th>
+        <th>Tipo</th>
+        <th>Valor NF</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody id="dataGrid">
+      <!-- Dados serão inseridos dinamicamente -->
+    </tbody>
+  </table>
+
+  <script>
+    const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
+
+
+    // Função para buscar registros (Op = 3)
+    function fetchData() {
+      fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ Op: 3 })
+      })
+      .then(response => response.json())
+      .then(data => {
+        const grid = document.getElementById("dataGrid");
+        grid.innerHTML = ""; // Limpa o grid
+        data.dados.forEach(record => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${record.numero_nf_int}</td>
+            <td>${record.classificacao}</td>
+            <td>${record.valor_nf_plan.toFixed(2)}</td>
+            <td>
+              <button onclick="deleteRecord(${record.numero_nf_int})">Excluir</button>
+            </td>
+          `;
+          grid.appendChild(row);
+        });
+      })
+      .catch(error => console.error("Erro ao buscar dados:", error));
+    }
+
+    // Função para adicionar registro (Op = 1)
+    document.getElementById("addForm").addEventListener("submit", event => {
+      event.preventDefault();
+      const numeroNF = document.getElementById("numeroNF").value;
+      const tipo = document.getElementById("tipo").value;
+      const valorNF = parseFloat(document.getElementById("valorNF").value);
+
+      fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ NumeroNF: numeroNF, Tipo: tipo, ValorNF: valorNF, Op: 1 })
+      })
+      .then(response => response.json())
+      .then(() => {
+        alert("Registro adicionado com sucesso!");
+        fetchData(); // Atualiza o grid
+      })
+      .catch(error => console.error("Erro ao adicionar registro:", error));
+    });
+
+    // Função para excluir registro (Op = 2)
+    function deleteRecord(numeroNF) {
+      if (confirm(`Deseja excluir o registro com Número NF: ${numeroNF}?`)) {
+        fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ NumeroNF: numeroNF, Op: 2 })
+        })
+        .then(response => response.json())
+        .then(() => {
+          alert("Registro excluído com sucesso!");
+          fetchData(); // Atualiza o grid
+        })
+        .catch(error => console.error("Erro ao excluir registro:", error));
+      }
+    }
+
+    // Inicializa o grid ao carregar a página
+    fetchData();
+  </script>
+</body>
+</html>
