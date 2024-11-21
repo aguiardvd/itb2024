@@ -65,7 +65,6 @@
   <script>
     const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
 
-
     // Função para buscar registros (Op = 3)
     function fetchData() {
       fetch(apiUrl, {
@@ -73,7 +72,10 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ Op: 3 })
       })
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) throw new Error(`Erro ao buscar registros: ${response.status}`);
+        return response.json();
+      })
       .then(data => {
         const grid = document.getElementById("dataGrid");
         grid.innerHTML = ""; // Limpa o grid
@@ -96,16 +98,21 @@
     // Função para adicionar registro (Op = 1)
     document.getElementById("addForm").addEventListener("submit", event => {
       event.preventDefault();
-      const numeroNF = document.getElementById("numeroNF").value;
-      const tipo = document.getElementById("tipo").value;
+      const numeroNF = parseInt(document.getElementById("numeroNF").value);
+      const tipo = document.getElementById("tipo").value.trim();
       const valorNF = parseFloat(document.getElementById("valorNF").value);
+
+      console.log("Enviando dados para adicionar:", { NumeroNF: numeroNF, Tipo: tipo, ValorNF: valorNF, Op: 1 });
 
       fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ NumeroNF: numeroNF, Tipo: tipo, ValorNF: valorNF, Op: 1 })
       })
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) throw new Error(`Erro ao adicionar registro: ${response.status}`);
+        return response.json();
+      })
       .then(() => {
         alert("Registro adicionado com sucesso!");
         fetchData(); // Atualiza o grid
@@ -116,12 +123,17 @@
     // Função para excluir registro (Op = 2)
     function deleteRecord(numeroNF) {
       if (confirm(`Deseja excluir o registro com Número NF: ${numeroNF}?`)) {
+        console.log("Enviando dados para exclusão:", { NumeroNF: numeroNF, Op: 2 });
+
         fetch(apiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ NumeroNF: numeroNF, Op: 2 })
         })
-        .then(response => response.json())
+        .then(response => {
+          if (!response.ok) throw new Error(`Erro ao excluir registro: ${response.status}`);
+          return response.json();
+        })
         .then(() => {
           alert("Registro excluído com sucesso!");
           fetchData(); // Atualiza o grid
