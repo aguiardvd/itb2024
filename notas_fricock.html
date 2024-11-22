@@ -126,6 +126,7 @@
     // Inicializa o grid ao carregar a página
     fetchData();
   </script>
+  
   <style>
   body {
     font-family: Arial, sans-serif;
@@ -141,8 +142,13 @@
   }
   th, td {
     text-align: center;
-    padding: 5px; /* Reduzi o padding para compactar as linhas */
-    font-size: 14px; /* Ajustei o tamanho da fonte para deixar mais compacto */
+    padding: 3px; /* Reduzi o padding */
+    font-size: 12px; /* Reduzi o tamanho da fonte */
+    line-height: 1; /* Compactei a altura da linha */
+  }
+  th {
+    font-weight: bold;
+    background-color: #f2f2f2;
   }
   form {
     margin-bottom: 20px;
@@ -152,6 +158,7 @@
     margin: 5px;
   }
 </style>
+
 
 </head>
 <body>
