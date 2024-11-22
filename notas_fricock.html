@@ -3,14 +3,128 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestão de Registros</title>
+  <title>Gestão de Registros - Importação CSV</title>
   <script>
-    const password = "123abc"; // Defina sua senha aqui
-    const userInput = prompt("Digite a senha para acessar a página:");
-    if (userInput !== password) {
-      alert("Senha incorreta. Você será redirecionado.");
-      window.location.href = "https://www.uol.com.br"; // Redireciona para outra página
+    const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
+
+    // Função para processar e enviar o CSV
+    function handleCSVUpload(event) {
+      event.preventDefault();
+
+      const fileInput = document.getElementById("csvFile");
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert("Por favor, selecione um arquivo CSV.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const text = e.target.result;
+        const rows = text.split("\n").map(row => row.split(";"));
+
+        const header = rows.shift(); // Remove e identifica cabeçalhos
+        if (header.length !== 3 || header[0].trim() !== "NumeroNF" || header[1].trim() !== "Tipo" || header[2].trim() !== "ValorNF") {
+          alert("O formato do CSV é inválido. Certifique-se de que as colunas são: NumeroNF;Tipo;ValorNF.");
+          return;
+        }
+
+        const records = rows.map(row => ({
+          NumeroNF: parseInt(row[0]),
+          Tipo: row[1]?.trim(),
+          ValorNF: parseFloat(row[2])
+        }));
+
+        // Filtrar registros válidos
+        const validRecords = records.filter(r => !isNaN(r.NumeroNF) && r.Tipo && !isNaN(r.ValorNF));
+        if (validRecords.length === 0) {
+          alert("Nenhum registro válido encontrado no CSV.");
+          return;
+        }
+
+        // Enviar registros em lote
+        let successCount = 0;
+        let errorCount = 0;
+
+        validRecords.forEach((record, index) => {
+          setTimeout(() => {
+            fetch(apiUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...record, Op: 1 })
+            })
+              .then(response => {
+                if (response.ok) {
+                  successCount++;
+                  console.log(`Registro enviado com sucesso: ${JSON.stringify(record)}`);
+                } else {
+                  errorCount++;
+                  console.error(`Erro ao enviar registro: ${JSON.stringify(record)}`);
+                }
+
+                if (index === validRecords.length - 1) {
+                  alert(`Processamento concluído! Sucessos: ${successCount}, Falhas: ${errorCount}`);
+                  fetchData(); // Atualizar a tabela após o envio
+                }
+              })
+              .catch(error => {
+                errorCount++;
+                console.error(`Erro ao enviar registro: ${JSON.stringify(record)}, Erro: ${error}`);
+              });
+          }, index * 200); // Espaço entre envios para evitar sobrecarga
+        });
+      };
+
+      reader.readAsText(file, "UTF-8");
     }
+
+    // Função para buscar registros (Op = 3)
+    function fetchData() {
+      fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ Op: 3 })
+      })
+        .then(response => response.json())
+        .then(data => {
+          const grid = document.getElementById("dataGrid");
+          grid.innerHTML = ""; // Limpa o grid
+          data.dados.forEach(record => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+              <td>${record.numero_nf_int}</td>
+              <td>${record.classificacao}</td>
+              <td>${record.valor_nf_plan.toFixed(2)}</td>
+              <td>
+                <button onclick="deleteRecord(${record.numero_nf_int})">Excluir</button>
+              </td>
+            `;
+            grid.appendChild(row);
+          });
+        })
+        .catch(error => console.error("Erro ao buscar dados:", error));
+    }
+
+    // Função para excluir registro (Op = 2)
+    function deleteRecord(numeroNF) {
+      if (confirm(`Deseja excluir o registro com Número NF: ${numeroNF}?`)) {
+        fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ NumeroNF: numeroNF, Op: 2 })
+        })
+          .then(response => response.json())
+          .then(() => {
+            alert("Registro excluído com sucesso!");
+            fetchData(); // Atualiza o grid
+          })
+          .catch(error => console.error("Erro ao excluir registro:", error));
+      }
+    }
+
+    // Inicializa o grid ao carregar a página
+    fetchData();
   </script>
   <style>
     body {
@@ -41,10 +155,10 @@
 <body>
   <h1>Gestão de Registros</h1>
 
-  <!-- Formulário para Enviar CSV -->
-  <form id="uploadForm">
-    <label for="fileInput">Enviar arquivo CSV:</label>
-    <input type="file" id="fileInput" accept=".csv" required>
+  <!-- Upload de CSV -->
+  <form id="csvForm" onsubmit="handleCSVUpload(event)">
+    <label for="csvFile">Enviar arquivo CSV:</label>
+    <input type="file" id="csvFile" accept=".csv" required>
     <button type="submit">Enviar Registros</button>
   </form>
 
@@ -62,114 +176,5 @@
       <!-- Dados serão inseridos dinamicamente -->
     </tbody>
   </table>
-
-  <script>
-    const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
-
-    // Função para buscar registros (Op = 3)
-    function fetchData() {
-      fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ Op: 3 })
-      })
-      .then(response => {
-        if (!response.ok) throw new Error(`Erro ao buscar registros: ${response.status}`);
-        return response.json();
-      })
-      .then(data => {
-        const grid = document.getElementById("dataGrid");
-        grid.innerHTML = ""; // Limpa o grid
-        data.dados.forEach(record => {
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td>${record.numero_nf_int}</td>
-            <td>${record.classificacao}</td>
-            <td>${record.valor_nf_plan.toFixed(2)}</td>
-            <td>
-              <button onclick="deleteRecord(${record.numero_nf_int})">Excluir</button>
-            </td>
-          `;
-          grid.appendChild(row);
-        });
-      })
-      .catch(error => console.error("Erro ao buscar dados:", error));
-    }
-
-    // Função para processar CSV e enviar registros em lote
-    document.getElementById("uploadForm").addEventListener("submit", event => {
-      event.preventDefault();
-      const fileInput = document.getElementById("fileInput").files[0];
-
-      if (!fileInput) {
-        alert("Por favor, selecione um arquivo.");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const csvData = e.target.result;
-        const rows = csvData.split("\n").filter(row => row.trim() !== ""); // Remove linhas vazias
-        const registros = rows.map(row => {
-          const cols = row.split(";").map(col => col?.trim()); // Adapta para separador ";" e remove espaços
-          if (cols.length >= 3) {
-            return {
-              NumeroNF: parseInt(cols[0], 10), // Primeiro campo: Número NF
-              Tipo: cols[1] || "", // Segundo campo: Tipo
-              ValorNF: parseFloat(cols[2]) // Terceiro campo: Valor NF
-            };
-          } else {
-            return null; // Ignora linhas com menos de 3 colunas
-          }
-        }).filter(registro => registro && registro.NumeroNF && registro.Tipo && !isNaN(registro.ValorNF)); // Filtra registros válidos
-
-        if (registros.length === 0) {
-          alert("O arquivo CSV não contém registros válidos.");
-          return;
-        }
-
-        registros.forEach(registro => {
-          fetch(apiUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...registro, Op: 1 })
-          })
-          .then(response => {
-            if (!response.ok) throw new Error(`Erro ao inserir registro ${registro.NumeroNF}: ${response.status}`);
-            return response.json();
-          })
-          .then(() => console.log(`Registro ${registro.NumeroNF} adicionado com sucesso.`))
-          .catch(error => console.error("Erro ao adicionar registro:", error));
-        });
-
-        alert("Registros enviados. Atualize a tabela para ver os resultados.");
-      };
-
-      reader.readAsText(fileInput, "UTF-8"); // Certifique-se de que a codificação esteja correta
-    });
-
-    // Função para excluir registro (Op = 2)
-    function deleteRecord(numeroNF) {
-      if (confirm(`Deseja excluir o registro com Número NF: ${numeroNF}?`)) {
-        fetch(apiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ NumeroNF: numeroNF, Op: 2 })
-        })
-        .then(response => {
-          if (!response.ok) throw new Error(`Erro ao excluir registro: ${response.status}`);
-          return response.json();
-        })
-        .then(() => {
-          alert("Registro excluído com sucesso!");
-          fetchData(); // Atualiza o grid
-        })
-        .catch(error => console.error("Erro ao excluir registro:", error));
-      }
-    }
-
-    // Inicializa o grid ao carregar a página
-    fetchData();
-  </script>
 </body>
 </html>
