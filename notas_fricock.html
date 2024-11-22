@@ -111,13 +111,17 @@
         const csvData = e.target.result;
         const rows = csvData.split("\n").filter(row => row.trim() !== ""); // Remove linhas vazias
         const registros = rows.map(row => {
-          const cols = row.split(";"); // Adapta para separador de campo ";"
-          return {
-            NumeroNF: parseInt(cols[0]?.trim() || 0), // Supondo que o primeiro campo seja o Número NF
-            Tipo: cols[1]?.trim() || "", // Segundo campo é o Tipo
-            ValorNF: parseFloat(cols[2]?.trim() || 0) // Terceiro campo é o Valor NF
-          };
-        }).filter(registro => registro.NumeroNF && registro.Tipo && !isNaN(registro.ValorNF)); // Filtra registros válidos
+          const cols = row.split(";").map(col => col?.trim()); // Adapta para separador ";" e remove espaços
+          if (cols.length >= 3) {
+            return {
+              NumeroNF: parseInt(cols[0], 10), // Primeiro campo: Número NF
+              Tipo: cols[1] || "", // Segundo campo: Tipo
+              ValorNF: parseFloat(cols[2]) // Terceiro campo: Valor NF
+            };
+          } else {
+            return null; // Ignora linhas com menos de 3 colunas
+          }
+        }).filter(registro => registro && registro.NumeroNF && registro.Tipo && !isNaN(registro.ValorNF)); // Filtra registros válidos
 
         if (registros.length === 0) {
           alert("O arquivo CSV não contém registros válidos.");
@@ -147,8 +151,6 @@
     // Função para excluir registro (Op = 2)
     function deleteRecord(numeroNF) {
       if (confirm(`Deseja excluir o registro com Número NF: ${numeroNF}?`)) {
-        console.log("Enviando dados para exclusão:", { NumeroNF: numeroNF, Op: 2 });
-
         fetch(apiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
