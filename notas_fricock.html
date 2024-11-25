@@ -13,23 +13,22 @@
 
       const fileInput = document.getElementById("csvFile");
       const file = fileInput.files[0];
-      const submitButton = document.getElementById("submitButton");
+      const submitButton = document.querySelector("#submitButton");
 
       if (!file) {
         alert("Por favor, selecione um arquivo CSV.");
         return;
       }
 
-      // Desabilitar o botão enquanto processa
+      // Desabilita o botão para evitar múltiplos envios
       submitButton.disabled = true;
-      submitButton.textContent = "Processando...";
 
       const reader = new FileReader();
       reader.onload = function (e) {
         const text = e.target.result;
         const rows = text.split("\n").map((row) => row.split(";"));
 
-        const header = rows.shift();
+        const header = rows.shift(); // Remove e identifica cabeçalhos
         if (
           header.length !== 3 ||
           header[0].trim() !== "NumeroNF" ||
@@ -39,8 +38,7 @@
           alert(
             "O formato do CSV é inválido. Certifique-se de que as colunas são: NumeroNF;Tipo;ValorNF."
           );
-          submitButton.disabled = false;
-          submitButton.textContent = "Enviar Registros";
+          submitButton.disabled = false; // Reabilita o botão em caso de erro
           return;
         }
 
@@ -50,27 +48,26 @@
           ValorNF: parseFloat(row[2]),
         }));
 
+        // Filtrar registros válidos
         const validRecords = records.filter(
           (r) => !isNaN(r.NumeroNF) && r.Tipo && !isNaN(r.ValorNF)
         );
-
         if (validRecords.length === 0) {
           alert("Nenhum registro válido encontrado no CSV.");
-          submitButton.disabled = false;
-          submitButton.textContent = "Enviar Registros";
+          submitButton.disabled = false; // Reabilita o botão
           return;
         }
 
+        // Dividir registros em lotes de no máximo 4999
         const batchSize = 4999;
         const batches = [];
         for (let i = 0; i < validRecords.length; i += batchSize) {
           batches.push(validRecords.slice(i, i + batchSize));
         }
 
+        // Enviar lotes
         let successCount = 0;
         let errorCount = 0;
-
-        let completedBatches = 0;
 
         batches.forEach((batch, index) => {
           fetch(apiUrl, {
@@ -93,14 +90,12 @@
               console.error("Erro no envio do lote:", error);
             })
             .finally(() => {
-              completedBatches++;
-              if (completedBatches === batches.length) {
+              if (index === batches.length - 1) {
                 alert(
                   `Processamento concluído! Sucessos: ${successCount}, Falhas: ${errorCount}`
                 );
-                submitButton.disabled = false;
-                submitButton.textContent = "Enviar Registros";
-                fetchData();
+                submitButton.disabled = false; // Reabilita o botão após processamento
+                fetchData(); // Atualizar a tabela após o envio
               }
             });
         });
@@ -119,7 +114,7 @@
         .then((response) => response.json())
         .then((data) => {
           const grid = document.getElementById("dataGrid");
-          grid.innerHTML = "";
+          grid.innerHTML = ""; // Limpa o grid
           data.dados.forEach((record) => {
             const row = document.createElement("tr");
             row.innerHTML = `
@@ -147,7 +142,7 @@
           .then((response) => response.json())
           .then(() => {
             alert("Registro excluído com sucesso!");
-            fetchData();
+            fetchData(); // Atualiza o grid
           })
           .catch((error) => console.error("Erro ao excluir registro:", error));
       }
@@ -156,6 +151,7 @@
     // Inicializa o grid ao carregar a página
     fetchData();
   </script>
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -201,7 +197,7 @@
   <!-- Upload de CSV -->
   <form id="csvForm" onsubmit="handleCSVUpload(event)">
     <label for="csvFile">Enviar arquivo CSV:</label>
-    <input type="file" id="csvFile" accept=".csv" required />
+    <input type="file" id="csvFile" accept=".csv" required>
     <button id="submitButton" type="submit">Enviar Registros</button>
   </form>
 
