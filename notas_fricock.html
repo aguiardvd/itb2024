@@ -8,95 +8,65 @@
     const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
 
     // Função para processar e enviar o CSV em uma única chamada
-    function handleCSVUpload(event) function handleCSVUpload(event) {
-  event.preventDefault();
+    function handleCSVUpload(event) {
+      event.preventDefault();
 
-  const fileInput = document.getElementById("csvFile");
-  const file = fileInput.files[0];
+      const fileInput = document.getElementById("csvFile");
+      const file = fileInput.files[0];
 
-  if (!file) {
-    alert("Por favor, selecione um arquivo CSV.");
-    return;
-  }
+      if (!file) {
+        alert("Por favor, selecione um arquivo CSV.");
+        return;
+      }
 
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    const text = e.target.result;
-    const rows = text.split("\n").map((row) => row.split(";"));
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const text = e.target.result;
+        const rows = text.split("\n").map(row => row.split(";"));
 
-    const header = rows.shift(); // Remove e identifica cabeçalhos
-    if (
-      header.length !== 3 ||
-      header[0].trim() !== "NumeroNF" ||
-      header[1].trim() !== "Tipo" ||
-      header[2].trim() !== "ValorNF"
-    ) {
-      alert(
-        "O formato do CSV é inválido. Certifique-se de que as colunas são: NumeroNF;Tipo;ValorNF."
-      );
-      return;
-    }
+        const header = rows.shift(); // Remove e identifica cabeçalhos
+        if (header.length !== 3 || header[0].trim() !== "NumeroNF" || header[1].trim() !== "Tipo" || header[2].trim() !== "ValorNF") {
+          alert("O formato do CSV é inválido. Certifique-se de que as colunas são: NumeroNF;Tipo;ValorNF.");
+          return;
+        }
 
-    const records = rows.map((row) => ({
-      NumeroNF: parseInt(row[0]),
-      Tipo: row[1]?.trim(),
-      ValorNF: parseFloat(row[2]),
-    }));
+        const records = rows.map(row => ({
+          NumeroNF: parseInt(row[0]),
+          Tipo: row[1]?.trim(),
+          ValorNF: parseFloat(row[2])
+        }));
 
-    // Filtrar registros válidos
-    const validRecords = records.filter(
-      (r) => !isNaN(r.NumeroNF) && r.Tipo && !isNaN(r.ValorNF)
-    );
-    if (validRecords.length === 0) {
-      alert("Nenhum registro válido encontrado no CSV.");
-      return;
-    }
+        // Filtrar registros válidos
+        const validRecords = records.filter(r => !isNaN(r.NumeroNF) && r.Tipo && !isNaN(r.ValorNF));
+        if (validRecords.length === 0) {
+          alert("Nenhum registro válido encontrado no CSV.");
+          return;
+        }
 
-    // Dividir registros em lotes de no máximo 5000
-    const batchSize = 5000;
-    const batches = [];
-    for (let i = 0; i < validRecords.length; i += batchSize) {
-      batches.push(validRecords.slice(i, i + batchSize));
-    }
-
-    // Enviar lotes
-    let successCount = 0;
-    let errorCount = 0;
-
-    batches.forEach((batch, index) => {
-      fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registros: batch, Op: 1 }),
-      })
-        .then((response) => {
-          if (!response.ok) {
-            errorCount += batch.length;
-            throw new Error(`Erro ao enviar lote ${index + 1}`);
-          }
-          return response.json();
+        // Enviar todos os registros em uma única chamada
+        fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ registros: validRecords, Op: 1 })
         })
-        .then(() => {
-          successCount += batch.length;
-          console.log(`Lote ${index + 1} enviado com sucesso.`);
-        })
-        .catch((error) => {
-          console.error("Erro no envio do lote:", error);
-        })
-        .finally(() => {
-          if (index === batches.length - 1) {
-            alert(
-              `Processamento concluído! Sucessos: ${successCount}, Falhas: ${errorCount}`
-            );
+          .then(response => {
+            if (!response.ok) {
+              throw new Error("Erro ao enviar os registros.");
+            }
+            return response.json();
+          })
+          .then(() => {
+            alert(`Registros enviados com sucesso! Total: ${validRecords.length}`);
             fetchData(); // Atualizar a tabela após o envio
-          }
-        });
-    });
-  };
+          })
+          .catch(error => {
+            console.error("Erro ao enviar os registros:", error);
+            alert("Falha ao enviar os registros. Verifique o console para mais detalhes.");
+          });
+      };
 
-  reader.readAsText(file, "UTF-8");
-}
-
+      reader.readAsText(file, "UTF-8");
+    }
 
     // Função para buscar registros (Op = 3)
     function fetchData() {
