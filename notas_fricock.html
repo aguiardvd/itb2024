@@ -8,7 +8,7 @@
     const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
 
     // Configuração: Máximo de registros por lote
-    const maxBatchSize = 1000;
+    const maxBatchSize = 200;
 
     function handleCSVUpload(event) {
       event.preventDefault();
