@@ -7,7 +7,7 @@
   <script>
     const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
 
-    // Função para processar e enviar o CSV em uma única chamada
+    // Função para processar e enviar o CSV em lotes de no máximo 5000
     function handleCSVUpload(event) {
       event.preventDefault();
 
@@ -43,26 +43,46 @@
           return;
         }
 
-        // Enviar todos os registros em uma única chamada
-        fetch(apiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ registros: validRecords, Op: 1 })
-        })
-          .then(response => {
-            if (!response.ok) {
-              throw new Error("Erro ao enviar os registros.");
-            }
-            return response.json();
+        // Dividir registros em lotes de no máximo 5000
+        const batchSize = 5000;
+        const batches = [];
+        for (let i = 0; i < validRecords.length; i += batchSize) {
+          batches.push(validRecords.slice(i, i + batchSize));
+        }
+
+        // Enviar lotes
+        let successCount = 0;
+        let errorCount = 0;
+
+        batches.forEach((batch, index) => {
+          fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ registros: batch, Op: 1 }),
           })
-          .then(() => {
-            alert(`Registros enviados com sucesso! Total: ${validRecords.length}`);
-            fetchData(); // Atualizar a tabela após o envio
-          })
-          .catch(error => {
-            console.error("Erro ao enviar os registros:", error);
-            alert("Falha ao enviar os registros. Verifique o console para mais detalhes.");
-          });
+            .then(response => {
+              if (!response.ok) {
+                errorCount += batch.length;
+                throw new Error(`Erro ao enviar lote ${index + 1}`);
+              }
+              return response.json();
+            })
+            .then(() => {
+              successCount += batch.length;
+              console.log(`Lote ${index + 1} enviado com sucesso.`);
+            })
+            .catch(error => {
+              console.error("Erro no envio do lote:", error);
+            })
+            .finally(() => {
+              if (index === batches.length - 1) {
+                alert(
+                  `Processamento concluído! Sucessos: ${successCount}, Falhas: ${errorCount}`
+                );
+                fetchData(); // Atualizar a tabela após o envio
+              }
+            });
+        });
       };
 
       reader.readAsText(file, "UTF-8");
