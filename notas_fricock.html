@@ -1,219 +1,144 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestão de Registros - Importação CSV</title>
-  <script>
-    const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
+<script>
+  const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
 
-    // Função para processar e enviar o CSV em lotes
-    function handleCSVUpload(event) {
-      event.preventDefault();
+  // Função para processar e enviar o CSV em lotes menores
+  async function handleCSVUpload(event) {
+    event.preventDefault();
 
-      const fileInput = document.getElementById("csvFile");
-      const file = fileInput.files[0];
-      const submitButton = document.querySelector("#submitButton");
+    const fileInput = document.getElementById("csvFile");
+    const file = fileInput.files[0];
+    const submitButton = document.querySelector("#submitButton");
 
-      if (!file) {
-        alert("Por favor, selecione um arquivo CSV.");
+    if (!file) {
+      alert("Por favor, selecione um arquivo CSV.");
+      return;
+    }
+
+    // Desabilita o botão para evitar múltiplos envios
+    submitButton.disabled = true;
+
+    const reader = new FileReader();
+    reader.onload = async function (e) {
+      const text = e.target.result;
+      const rows = text.split("\n").map((row) => row.split(";"));
+
+      const header = rows.shift(); // Remove e identifica cabeçalhos
+      if (
+        header.length !== 3 ||
+        header[0].trim() !== "NumeroNF" ||
+        header[1].trim() !== "Tipo" ||
+        header[2].trim() !== "ValorNF"
+      ) {
+        alert(
+          "O formato do CSV é inválido. Certifique-se de que as colunas são: NumeroNF;Tipo;ValorNF."
+        );
+        submitButton.disabled = false; // Reabilita o botão em caso de erro
         return;
       }
 
-      // Desabilita o botão para evitar múltiplos envios
-      submitButton.disabled = true;
+      const records = rows.map((row) => ({
+        NumeroNF: parseInt(row[0]),
+        Tipo: row[1]?.trim(),
+        ValorNF: parseFloat(row[2]),
+      }));
 
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        const text = e.target.result;
-        const rows = text.split("\n").map((row) => row.split(";"));
+      // Filtrar registros válidos
+      const validRecords = records.filter(
+        (r) => !isNaN(r.NumeroNF) && r.Tipo && !isNaN(r.ValorNF)
+      );
+      if (validRecords.length === 0) {
+        alert("Nenhum registro válido encontrado no CSV.");
+        submitButton.disabled = false; // Reabilita o botão
+        return;
+      }
 
-        const header = rows.shift(); // Remove e identifica cabeçalhos
-        if (
-          header.length !== 3 ||
-          header[0].trim() !== "NumeroNF" ||
-          header[1].trim() !== "Tipo" ||
-          header[2].trim() !== "ValorNF"
-        ) {
-          alert(
-            "O formato do CSV é inválido. Certifique-se de que as colunas são: NumeroNF;Tipo;ValorNF."
-          );
-          submitButton.disabled = false; // Reabilita o botão em caso de erro
-          return;
-        }
+      // Dividir registros em lotes de no máximo 1000
+      const batchSize = 1000;
+      const batches = [];
+      for (let i = 0; i < validRecords.length; i += batchSize) {
+        batches.push(validRecords.slice(i, i + batchSize));
+      }
 
-        const records = rows.map((row) => ({
-          NumeroNF: parseInt(row[0]),
-          Tipo: row[1]?.trim(),
-          ValorNF: parseFloat(row[2]),
-        }));
+      // Enviar lotes sequencialmente
+      let successCount = 0;
+      let errorCount = 0;
 
-        // Filtrar registros válidos
-        const validRecords = records.filter(
-          (r) => !isNaN(r.NumeroNF) && r.Tipo && !isNaN(r.ValorNF)
-        );
-        if (validRecords.length === 0) {
-          alert("Nenhum registro válido encontrado no CSV.");
-          submitButton.disabled = false; // Reabilita o botão
-          return;
-        }
-
-        // Dividir registros em lotes de no máximo 4999
-        const batchSize = 4999;
-        const batches = [];
-        for (let i = 0; i < validRecords.length; i += batchSize) {
-          batches.push(validRecords.slice(i, i + batchSize));
-        }
-
-        // Enviar lotes
-        let successCount = 0;
-        let errorCount = 0;
-
-        batches.forEach((batch, index) => {
-          fetch(apiUrl, {
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        try {
+          const response = await fetch(apiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ registros: batch, Op: 1 }),
-          })
-            .then((response) => {
-              if (!response.ok) {
-                errorCount += batch.length;
-                throw new Error(`Erro ao enviar lote ${index + 1}`);
-              }
-              return response.json();
-            })
-            .then(() => {
-              successCount += batch.length;
-              console.log(`Lote ${index + 1} enviado com sucesso.`);
-            })
-            .catch((error) => {
-              console.error("Erro no envio do lote:", error);
-            })
-            .finally(() => {
-              if (index === batches.length - 1) {
-                alert(
-                  `Processamento concluído! Sucessos: ${successCount}, Falhas: ${errorCount}`
-                );
-                submitButton.disabled = false; // Reabilita o botão após processamento
-                fetchData(); // Atualizar a tabela após o envio
-              }
-            });
+          });
+
+          if (!response.ok) {
+            errorCount += batch.length;
+            console.error(`Erro ao enviar lote ${i + 1}`);
+          } else {
+            successCount += batch.length;
+            console.log(`Lote ${i + 1} enviado com sucesso.`);
+          }
+        } catch (error) {
+          errorCount += batch.length;
+          console.error(`Erro no envio do lote ${i + 1}:`, error);
+        }
+      }
+
+      alert(
+        `Processamento concluído! Sucessos: ${successCount}, Falhas: ${errorCount}`
+      );
+      submitButton.disabled = false; // Reabilita o botão após o processamento
+      fetchData(); // Atualizar a tabela após o envio
+    };
+
+    reader.readAsText(file, "UTF-8");
+  }
+
+  // Função para buscar registros (Op = 3)
+  function fetchData() {
+    fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Op: 3 }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        const grid = document.getElementById("dataGrid");
+        grid.innerHTML = ""; // Limpa o grid
+        data.dados.forEach((record) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${record.numero_nf_int}</td>
+            <td>${record.classificacao}</td>
+            <td>${record.valor_nf_plan.toFixed(2)}</td>
+            <td>
+              <button onclick="deleteRecord(${record.numero_nf_int})">Excluir</button>
+            </td>
+          `;
+          grid.appendChild(row);
         });
-      };
+      })
+      .catch((error) => console.error("Erro ao buscar dados:", error));
+  }
 
-      reader.readAsText(file, "UTF-8");
-    }
-
-    // Função para buscar registros (Op = 3)
-    function fetchData() {
+  // Função para excluir registro (Op = 2)
+  function deleteRecord(numeroNF) {
+    if (confirm(`Deseja excluir o registro com Número NF: ${numeroNF}?`)) {
       fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ Op: 3 }),
+        body: JSON.stringify({ NumeroNF: numeroNF, Op: 2 }),
       })
         .then((response) => response.json())
-        .then((data) => {
-          const grid = document.getElementById("dataGrid");
-          grid.innerHTML = ""; // Limpa o grid
-          data.dados.forEach((record) => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-              <td>${record.numero_nf_int}</td>
-              <td>${record.classificacao}</td>
-              <td>${record.valor_nf_plan.toFixed(2)}</td>
-              <td>
-                <button onclick="deleteRecord(${record.numero_nf_int})">Excluir</button>
-              </td>
-            `;
-            grid.appendChild(row);
-          });
+        .then(() => {
+          alert("Registro excluído com sucesso!");
+          fetchData(); // Atualiza o grid
         })
-        .catch((error) => console.error("Erro ao buscar dados:", error));
+        .catch((error) => console.error("Erro ao excluir registro:", error));
     }
+  }
 
-    // Função para excluir registro (Op = 2)
-    function deleteRecord(numeroNF) {
-      if (confirm(`Deseja excluir o registro com Número NF: ${numeroNF}?`)) {
-        fetch(apiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ NumeroNF: numeroNF, Op: 2 }),
-        })
-          .then((response) => response.json())
-          .then(() => {
-            alert("Registro excluído com sucesso!");
-            fetchData(); // Atualiza o grid
-          })
-          .catch((error) => console.error("Erro ao excluir registro:", error));
-      }
-    }
-
-    // Inicializa o grid ao carregar a página
-    fetchData();
-  </script>
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
-    }
-    table,
-    th,
-    td {
-      border: 1px solid black;
-    }
-    th {
-      text-align: center;
-      padding: 5px;
-      font-size: 12px;
-      font-weight: bold;
-      background-color: #f2f2f2;
-    }
-    td {
-      text-align: center;
-      padding: 1px;
-      font-size: 10px;
-      line-height: 1;
-    }
-    form {
-      margin-bottom: 20px;
-    }
-    input,
-    button {
-      padding: 5px;
-      margin: 2px;
-      font-size: 10px;
-    }
-  </style>
-</head>
-<body>
-  <h1>Gestão de Registros</h1>
-
-  <!-- Upload de CSV -->
-  <form id="csvForm" onsubmit="handleCSVUpload(event)">
-    <label for="csvFile">Enviar arquivo CSV:</label>
-    <input type="file" id="csvFile" accept=".csv" required>
-    <button id="submitButton" type="submit">Enviar Registros</button>
-  </form>
-
-  <!-- Grid de Registros -->
-  <table>
-    <thead>
-      <tr>
-        <th>Número NF</th>
-        <th>Tipo</th>
-        <th>Valor NF</th>
-        <th>Ações</th>
-      </tr>
-    </thead>
-    <tbody id="dataGrid">
-      <!-- Dados serão inseridos dinamicamente -->
-    </tbody>
-  </table>
-</body>
-</html>
+  // Inicializa o grid ao carregar a página
+  fetchData();
+</script>
