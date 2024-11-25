@@ -7,7 +7,7 @@
   <script>
     const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
 
-    // Função para processar e enviar o CSV
+    // Função para processar e enviar o CSV em uma única chamada
     function handleCSVUpload(event) {
       event.preventDefault();
 
@@ -43,37 +43,21 @@
           return;
         }
 
-        // Enviar registros em lote
-        let successCount = 0;
-        let errorCount = 0;
-
-        validRecords.forEach((record, index) => {
-          setTimeout(() => {
-            fetch(apiUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...record, Op: 1 })
-            })
-              .then(response => {
-                if (response.ok) {
-                  successCount++;
-                  console.log(`Registro enviado com sucesso: ${JSON.stringify(record)}`);
-                } else {
-                  errorCount++;
-                  console.error(`Erro ao enviar registro: ${JSON.stringify(record)}`);
-                }
-
-                if (index === validRecords.length - 1) {
-                  alert(`Processamento concluído! Sucessos: ${successCount}, Falhas: ${errorCount}`);
-                  fetchData(); // Atualizar a tabela após o envio
-                }
-              })
-              .catch(error => {
-                errorCount++;
-                console.error(`Erro ao enviar registro: ${JSON.stringify(record)}, Erro: ${error}`);
-              });
-          }, index * 200); // Espaço entre envios para evitar sobrecarga
-        });
+        // Enviar todos os registros em uma única chamada
+        fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ registros: validRecords, Op: 1 })
+        })
+          .then(response => {
+            if (!response.ok) throw new Error(`Erro ao enviar registros: ${response.status}`);
+            return response.json();
+          })
+          .then(data => {
+            alert(`Registros enviados com sucesso: ${validRecords.length}`);
+            fetchData(); // Atualizar a tabela após o envio
+          })
+          .catch(error => console.error("Erro ao enviar registros:", error));
       };
 
       reader.readAsText(file, "UTF-8");
@@ -127,45 +111,41 @@
     fetchData();
   </script>
   
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    margin: 20px;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
-  }
-  table, th, td {
-    border: 1px solid black;
-  }
-  th {
-    text-align: center;
-    padding: 5px; /* Aumentei o padding do cabeçalho */
-    font-size: 12px; /* Aumentei o tamanho da fonte do cabeçalho */
-    font-weight: bold;
-    background-color: #f2f2f2;
-  }
-  td {
-    text-align: center;
-    padding: 1px; /* Mantive o padding compacto das linhas */
-    font-size: 10px;
-    line-height: 1;
-  }
-  form {
-    margin-bottom: 20px;
-  }
-  input, button {
-    padding: 5px; /* Mantive os inputs compactos */
-    margin: 2px;
-    font-size: 10px;
-  }
-</style>
-
-
-
-
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    table, th, td {
+      border: 1px solid black;
+    }
+    th {
+      text-align: center;
+      padding: 5px;
+      font-size: 12px;
+      font-weight: bold;
+      background-color: #f2f2f2;
+    }
+    td {
+      text-align: center;
+      padding: 1px;
+      font-size: 10px;
+      line-height: 1;
+    }
+    form {
+      margin-bottom: 20px;
+    }
+    input, button {
+      padding: 5px;
+      margin: 2px;
+      font-size: 10px;
+    }
+  </style>
 </head>
 <body>
   <h1>Gestão de Registros</h1>
