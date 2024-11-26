@@ -8,7 +8,6 @@
     const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
     const maxBatchSize = 200; // Número máximo de registros por lote
 
-    // Função para processar e enviar o CSV em lotes sequenciais
     async function handleCSVUpload(event) {
       event.preventDefault();
 
@@ -94,6 +93,8 @@
 
         for (let i = 0; i < batches.length; i++) {
           const batch = batches[i];
+          progressCounter.textContent = `Enviando lote ${i + 1} de ${batches.length}...`;
+
           try {
             const response = await fetch(apiUrl, {
               method: "POST",
@@ -105,7 +106,9 @@
               errorCount += batch.length;
               console.error(`Erro no lote ${i + 1}`);
             } else {
-              successCount += batch.length;
+              const responseData = await response.json();
+              successCount += responseData.sucesso || batch.length;
+              errorCount += responseData.falha || 0;
               console.log(`Lote ${i + 1} enviado com sucesso.`);
             }
           } catch (error) {
@@ -114,9 +117,9 @@
           }
 
           // Atualizar o contador na tela
-          progressCounter.textContent = `Processados: ${
+          progressCounter.textContent = `Registros processados: ${
             successCount + errorCount
-          }/${validRecords.length}`;
+          } enviados até agora.`;
         }
 
         // Reabilita o botão após o processamento
@@ -228,7 +231,7 @@
     <input type="file" id="csvFile" accept=".csv" required>
     <button id="submitButton" type="submit">Enviar Registros</button>
   </form>
-  <div id="progressCounter"></div>
+  <div id="progressCounter">Registros processados: 0 enviados até agora.</div>
 
   <!-- Grid de Registros -->
   <table>
