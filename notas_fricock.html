@@ -6,7 +6,7 @@
   <title>Gestão de Registros - Importação CSV</title>
   <script>
     const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
-    const maxBatchSize = 100; // Número máximo de registros por lote
+    const maxBatchSize = 50; // Número máximo de registros por lote
 
     async function handleCSVUpload(event) {
       event.preventDefault();
