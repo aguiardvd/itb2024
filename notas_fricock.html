@@ -22,7 +22,6 @@
         return;
       }
 
-      // Desabilita o botão enquanto processa
       submitButton.disabled = true;
       progressCounter.textContent = "Iniciando...";
 
@@ -31,7 +30,7 @@
         const text = e.target.result;
         const rows = text.split("\n").map((row) => row.split(";"));
 
-        const header = rows.shift(); // Remove e identifica cabeçalhos
+        const header = rows.shift();
         if (
           header.length !== 3 ||
           header[0].trim() !== "NumeroNF" ||
@@ -51,17 +50,16 @@
           ValorNF: parseFloat(row[2]),
         }));
 
-        // Filtrar registros válidos
         const validRecords = records.filter(
           (r) => !isNaN(r.NumeroNF) && r.Tipo && !isNaN(r.ValorNF)
         );
+
         if (validRecords.length === 0) {
           alert("Nenhum registro válido encontrado no CSV.");
           submitButton.disabled = false;
           return;
         }
 
-        // Chamar Op = 4 para truncar a tabela, se checkbox estiver marcado
         if (truncateCheckbox.checked) {
           try {
             progressCounter.textContent = "Zerando tabela...";
@@ -84,13 +82,11 @@
           }
         }
 
-        // Dividir registros em lotes de no máximo maxBatchSize
         const batches = [];
         for (let i = 0; i < validRecords.length; i += maxBatchSize) {
           batches.push(validRecords.slice(i, i + maxBatchSize));
         }
 
-        // Processar lotes sequencialmente
         let successCount = 0;
         let errorCount = 0;
 
@@ -107,37 +103,31 @@
 
             if (!response.ok) {
               errorCount += batch.length;
-              console.error(`Erro no lote ${i + 1}`);
             } else {
               const responseData = await response.json();
               successCount += responseData.sucesso || batch.length;
               errorCount += responseData.falha || 0;
-              console.log(`Lote ${i + 1} enviado com sucesso.`);
             }
           } catch (error) {
             errorCount += batch.length;
-            console.error(`Erro no lote ${i + 1}:`, error);
           }
 
-          // Atualizar o contador na tela
           progressCounter.textContent = `Registros processados: ${
             successCount + errorCount
           } enviados até agora. Lote ${i + 1} concluído.`;
         }
 
-        // Reabilita o botão após o processamento
         submitButton.disabled = false;
 
         alert(
           `Processamento concluído! Sucessos: ${successCount}, Falhas: ${errorCount}`
         );
-        fetchData(); // Atualizar a tabela após o envio
+        fetchData();
       };
 
       reader.readAsText(file, "UTF-8");
     }
 
-    // Função para buscar registros (Op = 3)
     function fetchData() {
       fetch(apiUrl, {
         method: "POST",
@@ -147,7 +137,7 @@
         .then(response => response.json())
         .then(data => {
           const grid = document.getElementById("dataGrid");
-          grid.innerHTML = ""; // Limpa o grid
+          grid.innerHTML = "";
           data.dados.forEach(record => {
             const row = document.createElement("tr");
             row.innerHTML = `
@@ -164,7 +154,6 @@
         .catch(error => console.error("Erro ao buscar dados:", error));
     }
 
-    // Função para excluir registro (Op = 2)
     function deleteRecord(numeroNF) {
       if (confirm(`Deseja excluir o registro com Número NF: ${numeroNF}?`)) {
         fetch(apiUrl, {
@@ -175,13 +164,12 @@
           .then(response => response.json())
           .then(() => {
             alert("Registro excluído com sucesso!");
-            fetchData(); // Atualiza o grid
+            fetchData();
           })
           .catch(error => console.error("Erro ao excluir registro:", error));
       }
     }
 
-    // Inicializa o grid ao carregar a página
     fetchData();
   </script>
   
@@ -228,7 +216,6 @@
 <body>
   <h1>Gestão de Registros</h1>
 
-  <!-- Upload de CSV -->
   <form id="csvForm" onsubmit="handleCSVUpload(event)">
     <label for="csvFile">Enviar arquivo CSV:</label>
     <input type="file" id="csvFile" accept=".csv" required>
@@ -240,7 +227,6 @@
   </form>
   <div id="progressCounter">Registros processados: 0 enviados até agora.</div>
 
-  <!-- Grid de Registros -->
   <table>
     <thead>
       <tr>
@@ -250,9 +236,7 @@
         <th>Ações</th>
       </tr>
     </thead>
-    <tbody id="dataGrid">
-      <!-- Dados serão inseridos dinamicamente -->
-    </tbody>
+    <tbody id="dataGrid"></tbody>
   </table>
 </body>
-</html
+</html>
