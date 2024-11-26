@@ -8,44 +8,24 @@
     const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
     const maxBatchSize = 200; // Número máximo de registros por lote
 
+    // Função para processar e enviar o CSV em lotes sequenciais
     async function handleCSVUpload(event) {
       event.preventDefault();
 
       const fileInput = document.getElementById("csvFile");
       const file = fileInput.files[0];
       const submitButton = document.getElementById("submitButton");
-      const progressText = document.getElementById("progressText");
+      const progressCounter = document.getElementById("progressCounter");
 
       if (!file) {
         alert("Por favor, selecione um arquivo CSV.");
         return;
       }
 
+      // Desabilita o botão enquanto processa
       submitButton.disabled = true;
-      progressText.textContent = "Preparando para enviar os registros...";
+      progressCounter.textContent = "Iniciando...";
 
-      // Primeira chamada com Op = 4 para truncar a tabela
-      try {
-        const response = await fetch(apiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ Op: 4 }),
-        });
-
-        if (!response.ok) {
-          alert("Erro ao truncar a tabela. Processamento cancelado.");
-          submitButton.disabled = false;
-          return;
-        }
-        console.log("Tabela truncada com sucesso.");
-      } catch (error) {
-        console.error("Erro ao truncar a tabela:", error);
-        alert("Erro ao truncar a tabela. Processamento cancelado.");
-        submitButton.disabled = false;
-        return;
-      }
-
-      // Processar o CSV após truncar a tabela
       const reader = new FileReader();
       reader.onload = async function (e) {
         const text = e.target.result;
@@ -71,6 +51,7 @@
           ValorNF: parseFloat(row[2]),
         }));
 
+        // Filtrar registros válidos
         const validRecords = records.filter(
           (r) => !isNaN(r.NumeroNF) && r.Tipo && !isNaN(r.ValorNF)
         );
@@ -80,11 +61,34 @@
           return;
         }
 
+        // Primeira chamada para truncar a tabela (Op = 4)
+        try {
+          progressCounter.textContent = "Zerando tabela...";
+          const truncateResponse = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ Op: 4 }),
+          });
+          if (!truncateResponse.ok) {
+            alert("Erro ao truncar a tabela!");
+            submitButton.disabled = false;
+            return;
+          }
+          progressCounter.textContent = "Tabela zerada!";
+        } catch (error) {
+          alert("Erro ao truncar a tabela!");
+          console.error(error);
+          submitButton.disabled = false;
+          return;
+        }
+
+        // Dividir registros em lotes de no máximo maxBatchSize
         const batches = [];
         for (let i = 0; i < validRecords.length; i += maxBatchSize) {
           batches.push(validRecords.slice(i, i + maxBatchSize));
         }
 
+        // Processar lotes sequencialmente
         let successCount = 0;
         let errorCount = 0;
 
@@ -97,40 +101,37 @@
               body: JSON.stringify({ registros: batch, Op: 1 }),
             });
 
-            const result = await response.json();
-            if (!response.ok || result.status !== "concluido") {
-              console.error(`Erro no lote ${i + 1}`, result);
+            if (!response.ok) {
               errorCount += batch.length;
+              console.error(`Erro no lote ${i + 1}`);
             } else {
-              result.detalhes.forEach((item) => {
-                if (item.status === "sucesso") successCount++;
-                else errorCount++;
-              });
-
+              successCount += batch.length;
               console.log(`Lote ${i + 1} enviado com sucesso.`);
             }
-
-            // Atualizar progresso na tela
-            progressText.textContent = `Registros processados: ${successCount} enviados até agora.`;
           } catch (error) {
             errorCount += batch.length;
             console.error(`Erro no lote ${i + 1}:`, error);
           }
+
+          // Atualizar o contador na tela
+          progressCounter.textContent = `Processados: ${
+            successCount + errorCount
+          }/${validRecords.length}`;
         }
 
+        // Reabilita o botão após o processamento
         submitButton.disabled = false;
 
         alert(
-          `Processamento concluído!\n` +
-          `Sucessos: ${successCount}\n` +
-          `Falhas: ${errorCount}`
+          `Processamento concluído! Sucessos: ${successCount}, Falhas: ${errorCount}`
         );
-        fetchData();
+        fetchData(); // Atualizar a tabela após o envio
       };
 
       reader.readAsText(file, "UTF-8");
     }
 
+    // Função para buscar registros (Op = 3)
     function fetchData() {
       fetch(apiUrl, {
         method: "POST",
@@ -147,6 +148,9 @@
               <td>${record.numero_nf_int}</td>
               <td>${record.classificacao}</td>
               <td>${record.valor_nf_plan.toFixed(2)}</td>
+              <td>
+                <button onclick="deleteRecord(${record.numero_nf_int})">Excluir</button>
+              </td>
             `;
             grid.appendChild(row);
           });
@@ -154,9 +158,27 @@
         .catch(error => console.error("Erro ao buscar dados:", error));
     }
 
+    // Função para excluir registro (Op = 2)
+    function deleteRecord(numeroNF) {
+      if (confirm(`Deseja excluir o registro com Número NF: ${numeroNF}?`)) {
+        fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ NumeroNF: numeroNF, Op: 2 })
+        })
+          .then(response => response.json())
+          .then(() => {
+            alert("Registro excluído com sucesso!");
+            fetchData(); // Atualiza o grid
+          })
+          .catch(error => console.error("Erro ao excluir registro:", error));
+      }
+    }
+
+    // Inicializa o grid ao carregar a página
     fetchData();
   </script>
-
+  
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -191,9 +213,8 @@
       margin: 2px;
       font-size: 10px;
     }
-    #progressContainer {
-      margin-top: 20px;
-      font-size: 14px;
+    #progressCounter {
+      margin-top: 10px;
       font-weight: bold;
     }
   </style>
@@ -207,11 +228,7 @@
     <input type="file" id="csvFile" accept=".csv" required>
     <button id="submitButton" type="submit">Enviar Registros</button>
   </form>
-
-  <!-- Progresso -->
-  <div id="progressContainer">
-    <p id="progressText">Nenhum registro enviado ainda.</p>
-  </div>
+  <div id="progressCounter"></div>
 
   <!-- Grid de Registros -->
   <table>
@@ -220,6 +237,7 @@
         <th>Número NF</th>
         <th>Tipo</th>
         <th>Valor NF</th>
+        <th>Ações</th>
       </tr>
     </thead>
     <tbody id="dataGrid">
