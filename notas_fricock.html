@@ -13,6 +13,7 @@
 
       const fileInput = document.getElementById("csvFile");
       const file = fileInput.files[0];
+      const truncateCheckbox = document.getElementById("truncateCheckbox");
       const submitButton = document.getElementById("submitButton");
       const progressCounter = document.getElementById("progressCounter");
 
@@ -60,25 +61,27 @@
           return;
         }
 
-        // Primeira chamada para truncar a tabela (Op = 4)
-        try {
-          progressCounter.textContent = "Zerando tabela...";
-          const truncateResponse = await fetch(apiUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ Op: 4 }),
-          });
-          if (!truncateResponse.ok) {
+        // Chamar Op = 4 para truncar a tabela, se checkbox estiver marcado
+        if (truncateCheckbox.checked) {
+          try {
+            progressCounter.textContent = "Zerando tabela...";
+            const truncateResponse = await fetch(apiUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ Op: 4 }),
+            });
+            if (!truncateResponse.ok) {
+              alert("Erro ao truncar a tabela!");
+              submitButton.disabled = false;
+              return;
+            }
+            progressCounter.textContent = "Tabela zerada!";
+          } catch (error) {
             alert("Erro ao truncar a tabela!");
+            console.error(error);
             submitButton.disabled = false;
             return;
           }
-          progressCounter.textContent = "Tabela zerada!";
-        } catch (error) {
-          alert("Erro ao truncar a tabela!");
-          console.error(error);
-          submitButton.disabled = false;
-          return;
         }
 
         // Dividir registros em lotes de no máximo maxBatchSize
@@ -229,6 +232,10 @@
   <form id="csvForm" onsubmit="handleCSVUpload(event)">
     <label for="csvFile">Enviar arquivo CSV:</label>
     <input type="file" id="csvFile" accept=".csv" required>
+    <label>
+      <input type="checkbox" id="truncateCheckbox">
+      Apagar registros
+    </label>
     <button id="submitButton" type="submit">Enviar Registros</button>
   </form>
   <div id="progressCounter">Registros processados: 0 enviados até agora.</div>
@@ -248,4 +255,4 @@
     </tbody>
   </table>
 </body>
-</html>
+</html
