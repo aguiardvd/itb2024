@@ -3,10 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestão de Registros - Fricock</title>
+  <title>NF Fricock</title>
   <script>
     const apiUrl = "https://prod-09.brazilsouth.logic.azure.com:443/workflows/7a7aa18f48084cde914b15924922265d/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8-7BxQuEr9m-kcroJivlLgojphkXOS_LFIEFxRN6cE4";
     const maxBatchSize = 50; // Número máximo de registros por lote
+    const recordsPerPage = 500; // Registros por página
+    let currentPage = 1;
+    let allRecords = [];
 
     async function handleCSVUpload(event) {
       event.preventDefault();
@@ -136,22 +139,45 @@
       })
         .then(response => response.json())
         .then(data => {
-          const grid = document.getElementById("dataGrid");
-          grid.innerHTML = "";
-          data.dados.forEach(record => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-              <td>${record.numero_nf_int}</td>
-              <td>${record.classificacao}</td>
-              <td>${record.valor_nf_plan.toFixed(2)}</td>
-              <td>
-                <button onclick="deleteRecord(${record.numero_nf_int})">Excluir</button>
-              </td>
-            `;
-            grid.appendChild(row);
-          });
+          allRecords = data.dados;
+          renderTable();
         })
         .catch(error => console.error("Erro ao buscar dados:", error));
+    }
+
+    function renderTable() {
+      const grid = document.getElementById("dataGrid");
+      const paginationInfo = document.getElementById("paginationInfo");
+      const start = (currentPage - 1) * recordsPerPage;
+      const end = start + recordsPerPage;
+      const pageRecords = allRecords.slice(start, end);
+
+      grid.innerHTML = "";
+      pageRecords.forEach(record => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${record.numero_nf_int}</td>
+          <td>${record.classificacao}</td>
+          <td>${record.valor_nf_plan.toFixed(2)}</td>
+          <td>
+            <button onclick="deleteRecord(${record.numero_nf_int})">Excluir</button>
+          </td>
+        `;
+        grid.appendChild(row);
+      });
+
+      paginationInfo.textContent = `Página ${currentPage} de ${Math.ceil(
+        allRecords.length / recordsPerPage
+      )}`;
+    }
+
+    function changePage(offset) {
+      const totalPages = Math.ceil(allRecords.length / recordsPerPage);
+      currentPage = Math.min(
+        Math.max(1, currentPage + offset),
+        totalPages
+      );
+      renderTable();
     }
 
     function deleteRecord(numeroNF) {
@@ -207,9 +233,12 @@
       margin: 2px;
       font-size: 10px;
     }
-    #progressCounter {
+    #progressCounter, #paginationInfo {
       margin-top: 10px;
       font-weight: bold;
+    }
+    #paginationControls {
+      margin-top: 10px;
     }
   </style>
 </head>
@@ -227,6 +256,12 @@
   </form>
   <div id="progressCounter">Registros processados: 0 enviados até agora.</div>
 
+  <div id="paginationInfo">Página 1</div>
+  <div id="paginationControls">
+    <button onclick="changePage(-1)">Anterior</button>
+    <button onclick="changePage(1)">Próximo</button>
+  </div>
+
   <table>
     <thead>
       <tr>
@@ -236,7 +271,16 @@
         <th>Ações</th>
       </tr>
     </thead>
-    <tbody id="dataGrid"></tbody>
+    <tbody id="dataGrid">
+      <!-- Dados serão inseridos dinamicamente -->
+    </tbody>
   </table>
+
+  <!-- Controles de Paginação -->
+  <div id="paginationControls">
+    <button onclick="changePage(-1)">Página Anterior</button>
+    <button onclick="changePage(1)">Próxima Página</button>
+  </div>
 </body>
 </html>
+
