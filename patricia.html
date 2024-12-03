@@ -30,16 +30,14 @@
         }
 
         .marquee {
-            font-size: 4vw; /* Responsivo: usa % da largura da tela */
+            font-size: 4vw; /* Fonte responsiva */
             font-weight: bold;
             color: #ff4081;
-            text-align: center;
             white-space: nowrap;
             position: absolute;
             top: 50%;
             transform: translateY(-50%);
-            width: 100%;
-            animation: scroll 10s linear infinite;
+            animation: scroll 8s linear infinite; /* Velocidade ajustada */
         }
 
         @keyframes scroll {
@@ -74,11 +72,11 @@
             }
         }
 
-        /* Ajuste adicional para telas pequenas */
+        /* Ajustes para telas pequenas */
         @media (max-width: 768px) {
             .marquee {
-                font-size: 6vw; /* Ajusta a fonte para telas menores */
-                animation-duration: 15s; /* Deixa a animação mais suave */
+                font-size: 6vw; /* Ajusta a fonte para dispositivos menores */
+                animation-duration: 12s; /* Deixa a animação mais suave */
             }
 
             .baby-icons span {
