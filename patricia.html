@@ -30,7 +30,7 @@
         }
 
         .marquee {
-            font-size: 5em;
+            font-size: 4vw; /* Responsivo: usa % da largura da tela */
             font-weight: bold;
             color: #ff4081;
             text-align: center;
@@ -71,6 +71,18 @@
             }
             50% {
                 transform: translateY(-20px);
+            }
+        }
+
+        /* Ajuste adicional para telas pequenas */
+        @media (max-width: 768px) {
+            .marquee {
+                font-size: 6vw; /* Ajusta a fonte para telas menores */
+                animation-duration: 15s; /* Deixa a animação mais suave */
+            }
+
+            .baby-icons span {
+                font-size: 3em; /* Diminui os ícones */
             }
         }
     </style>
