@@ -67,7 +67,6 @@
             height: 100%;
             pointer-events: none;
             overflow: hidden;
-            font-size: 4em;
         }
 
         .baby-icons span {
@@ -92,7 +91,14 @@
             }
 
             .baby-icons span {
-                font-size: 3em; /* Diminui os ícones */
+                font-size: 2.5em; /* Diminui os ícones no celular */
+            }
+        }
+
+        /* Ajustes para telas muito pequenas */
+        @media (max-width: 480px) {
+            .baby-icons span {
+                font-size: 2em; /* Reduz ainda mais o tamanho dos ícones para telas muito pequenas */
             }
         }
     </style>
